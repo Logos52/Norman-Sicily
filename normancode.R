@@ -257,3 +257,69 @@ mapcol +
   ggtitle("Monasteries by Dedication")+
   facet_wrap(~DedGroup)
 
+###### CLUSTERING REGIONS ###### (To use as a reponse?)
+#Remove rows with missing Seismic classification and save as object nspCluster
+nspCluster <- completeFun(norman, "Seismic")
+dim(nspCluster) #138 x 18
+
+mapgrey +
+geom_point(nspCluster, mapping = aes(x = Longitude, y = Latitude, color=factor(Seismic)),  inherit.aes = FALSE)+
+  labs(color="Seismic") +
+  xlab("Longitude")+
+  ylab("Latitude")+
+  ggtitle("Monasteries by Seismic Classification")+
+  facet_wrap(~Seismic)
+
+#Create subset called loc
+loc<-data.frame(nspCluster[,c("Name","Longitude","Latitude", "Seismic")])
+rownames(loc) <- loc$Name
+loc<-loc[,-1]
+
+if (!require("factoextra")) install.packages("factoextra")
+#Perform k-means clustering on the data loc. - 5 clusters
+km.res <- kmeans(loc, 4, nstart = 25)
+
+#Cluster plot - principal components
+fviz_cluster(km.res, data = loc,
+             ellipse.type = "convex",
+             palette = "jco",
+             ggtheme = theme_minimal(), 
+             geom = c("point", "text"),
+             labelsize = 4,
+             repel = T)
+#Centers of each cluster
+centroid<-aggregate(loc,by=list(km.res$cluster),FUN=mean)
+centroid
+
+mapof4clus<- mapcol +
+  geom_point(data=loc, aes(x=Longitude, y=Latitude, 
+                           colour=factor(km.res$cluster))) +
+  labs(colour="Cluster") +
+  geom_point(data=centroid, aes(Longitude, Latitude), 
+             size=4, shape=18) +
+  geom_text(data = centroid, aes(x=Longitude, y=Latitude, 
+                                 label=centroid$Group.1), hjust=-1, vjust=0) +
+  xlab("Longitude") +
+  ylab("Latitude") +
+  ggtitle("Monasteries Clustered into 5 Regions") +
+  theme_bw() + 
+  theme(plot.title = element_text(hjust = 0.5))
+
+#Removing Axis Code
+rmaxis<- theme(
+  axis.text = element_blank(),
+  axis.line = element_blank(),
+  axis.ticks = element_blank(),
+  panel.border = element_blank(),
+  panel.grid = element_blank(),
+  axis.title = element_blank()
+)
+
+#With Axis
+mapof4clus
+
+#Without Axis
+mapof4clus + rmaxis 
+
+#Adds the Location Clusters to the Dataset
+nspCluster$LocCluster<-as.factor(km.res$cluster)
